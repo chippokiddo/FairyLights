@@ -13,3 +13,9 @@ enum AlertType: Identifiable {
         }
     }
 }
+
+enum GitHubReleaseError: Error {
+    case noAssetsAvailable
+    case invalidResponse
+    case decodingError(String)
+}

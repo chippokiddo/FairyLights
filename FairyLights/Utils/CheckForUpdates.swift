@@ -24,19 +24,27 @@ func fetchLatestRelease() async throws -> (String, URL) {
     let url = URL(string: "https://api.github.com/repos/chippokiddo/FairyLights/releases/latest")!
     var request = URLRequest(url: url)
     request.addValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+    request.timeoutInterval = 15
     
     // Perform the network request
-    let (data, _) = try await URLSession.shared.data(for: request)
+    let (data, response) = try await URLSession.shared.data(for: request)
     
-    // Decode the JSON response
-    let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-    
-    // Check if there are assets available
-    guard let downloadURL = release.assets.first?.browserDownloadURL else {
-        throw NSError(domain: "GitHubReleaseError", code: 0, userInfo: [
-            NSLocalizedDescriptionKey: "No assets available in the latest release on GitHub."
-        ])
+    // Validate HTTP response
+    guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+        throw GitHubReleaseError.invalidResponse
     }
     
-    return (release.tagName, downloadURL)
+    do {
+        // Decode the JSON response
+        let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+        
+        // Check if there are assets available
+        guard let downloadURL = release.assets.first?.browserDownloadURL else {
+            throw GitHubReleaseError.noAssetsAvailable
+        }
+        
+        return (release.tagName, downloadURL)
+    } catch {
+        throw GitHubReleaseError.decodingError(error.localizedDescription)
+    }
 }
