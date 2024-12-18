@@ -8,7 +8,6 @@ struct FairyLightsApp: App {
     
     @State private var aboutWindow: NSWindow?
     @State private var settingsWindow: NSWindow?
-    
     @State private var alertType: AlertType?
 
     var body: some Scene {
@@ -33,8 +32,13 @@ struct FairyLightsApp: App {
                 }
             }
         } label: {
-            Image("MenuBarIcon")
-                .renderingMode(.template)
+            let image: NSImage = {
+                let ratio = $0.size.height / $0.size.width
+                $0.size.height = 16
+                $0.size.width = 16 / ratio
+                return $0
+            }(NSImage(named: "MenuBarIcon") ?? NSImage())
+            Image(nsImage: image)
                 .opacity(lightsController.isLightsOn ? 1.0 : 0.35)
         }
     }
