@@ -9,7 +9,8 @@ struct FairyLightsApp: App {
     @State private var aboutWindow: NSWindow?
     @State private var settingsWindow: NSWindow?
     @State private var alertType: AlertType?
-
+    @State private var isCheckingForUpdates = false
+    
     var body: some Scene {
         MenuBarExtra {
             VStack {
@@ -33,11 +34,12 @@ struct FairyLightsApp: App {
             }
         } label: {
             let image: NSImage = {
-                let ratio = $0.size.height / $0.size.width
-                $0.size.height = 16
-                $0.size.width = 16 / ratio
-                return $0
-            }(NSImage(named: "MenuBarIcon") ?? NSImage())
+                guard let image = NSImage(named: "MenuBarIcon") else { return NSImage() }
+                let ratio = image.size.height / image.size.width
+                image.size.height = 16
+                image.size.width = 16 / ratio
+                return image
+            }()
             Image(nsImage: image)
                 .opacity(lightsController.isLightsOn ? 1.0 : 0.35)
         }
@@ -45,8 +47,10 @@ struct FairyLightsApp: App {
     
     // MARK: - Update Check
     private func checkForAppUpdates() {
-        appState.isCheckingForUpdates = true
+        guard !isCheckingForUpdates else { return }
+        isCheckingForUpdates = true
         Task { @MainActor in
+            defer { isCheckingForUpdates = false }
             do {
                 let (latestVersion, downloadURL) = try await fetchLatestRelease()
                 let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
@@ -62,7 +66,6 @@ struct FairyLightsApp: App {
                 // Show error alert
                 showErrorAlert(message: error.localizedDescription)
             }
-            appState.isCheckingForUpdates = false
         }
     }
     
@@ -106,12 +109,12 @@ struct FairyLightsApp: App {
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Download")
         alert.addButton(withTitle: "Later")
-
+        
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(downloadURL)
         }
     }
-
+    
     private func showNoUpdateAlert() {
         let alert = NSAlert()
         alert.messageText = "No Updates Available"
@@ -120,7 +123,7 @@ struct FairyLightsApp: App {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
-
+    
     private func showErrorAlert(message: String) {
         let alert = NSAlert()
         alert.messageText = "Update Check Failed"
