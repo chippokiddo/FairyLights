@@ -12,6 +12,7 @@ class LightsController: ObservableObject {
     }
 
     func toggleLights() {
+        objectWillChange.send()
         if isLightsOn {
             hideLights()
         } else {
@@ -26,12 +27,27 @@ class LightsController: ObservableObject {
         for screen in NSScreen.screens {
             positionLights(on: screen)
         }
+
+        for window in windows {
+            window.alphaValue = 0
+            
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.5
+                window.animator().alphaValue = 1.0
+            }
+        }
     }
+
 
     private func hideLights() {
         for window in windows {
-            window.contentView = nil
-            window.close()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.5
+                window.animator().alphaValue = 0
+            } completionHandler: {
+                window.contentView = nil
+                window.close()
+            }
         }
         windows.removeAll()
     }
