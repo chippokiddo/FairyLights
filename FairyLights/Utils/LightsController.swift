@@ -1,58 +1,50 @@
 import SwiftUI
 import Quartz
 
+@MainActor
 class LightsController: ObservableObject {
     @Published var isLightsOn = false
-    
+
     private var windows: [NSWindow] = []
-    private var observer: NSObjectProtocol?
 
     init() {
-        observeScreenChanges()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleScreenChange()
+            }
+        }
     }
 
     func toggleLights() {
-        objectWillChange.send()
-        if isLightsOn {
-            hideLights()
-        } else {
-            showLights()
-        }
         isLightsOn.toggle()
+        isLightsOn ? fadeInLights() : fadeOutLights()
     }
 
-    private func showLights() {
-        guard windows.isEmpty else { return }
+    private func fadeInLights() {
+        if !windows.isEmpty {
+            animateWindows(alpha: 1.0)
+            return
+        }
 
         for screen in NSScreen.screens {
-            positionLights(on: screen)
+            createLightWindow(for: screen)
         }
 
-        for window in windows {
-            window.alphaValue = 0
-            
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.5
-                window.animator().alphaValue = 1.0
-            }
+        windows.forEach { $0.alphaValue = 0.0 }
+        animateWindows(alpha: 1.0)
+    }
+
+    private func fadeOutLights() {
+        animateWindows(alpha: 0.0) {
+            self.clearWindows()
         }
     }
 
-
-    private func hideLights() {
-        for window in windows {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.5
-                window.animator().alphaValue = 0
-            } completionHandler: {
-                window.contentView = nil
-                window.close()
-            }
-        }
-        windows.removeAll()
-    }
-
-    private func positionLights(on screen: NSScreen) {
+    private func createLightWindow(for screen: NSScreen) {
         let menuBarHeight = NSStatusBar.system.thickness
         let lightsHeight: CGFloat = 50
 
@@ -69,7 +61,7 @@ class LightsController: ObservableObject {
             backing: .buffered,
             defer: false
         )
-        
+
         window.level = .floating
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -82,25 +74,33 @@ class LightsController: ObservableObject {
         windows.append(window)
     }
 
-    private func observeScreenChanges() {
-        observer = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self, self.isLightsOn else { return }
-            self.repositionLights()
+    private func animateWindows(alpha: CGFloat, completion: (() -> Void)? = nil) {
+        guard !windows.isEmpty else { return }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.5
+            for window in windows {
+                window.animator().alphaValue = alpha
+            }
+        } completionHandler: {
+            completion?()
         }
     }
 
-    private func repositionLights() {
-        hideLights()
-        showLights()
+    private func clearWindows() {
+        windows.forEach { $0.close() }
+        windows.removeAll()
     }
 
-    deinit {
-        if let observer = observer {
-            NotificationCenter.default.removeObserver(observer)
+    private func handleScreenChange() {
+        guard isLightsOn else { return }
+        refreshLights()
+    }
+
+    private func refreshLights() {
+        if !windows.isEmpty {
+            clearWindows()
         }
+        fadeInLights()
     }
 }

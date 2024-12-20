@@ -19,3 +19,7 @@ enum GitHubReleaseError: Error {
     case invalidResponse
     case decodingError(String)
 }
+
+enum BulbColor: String, CaseIterable {
+    case red, green, yellow, blue
+}

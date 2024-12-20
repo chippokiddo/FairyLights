@@ -6,9 +6,7 @@ struct FairyLightsApp: App {
     @StateObject private var lightsController = LightsController()
     @StateObject private var appState = AppState()
     
-    @State private var aboutWindow: NSWindow?
-    @State private var settingsWindow: NSWindow?
-    @State private var alertType: AlertType?
+    @State private var windows: [String: NSWindow] = [:]
     @State private var isCheckingForUpdates = false
     
     var body: some Scene {
@@ -18,29 +16,17 @@ struct FairyLightsApp: App {
                     lightsController.toggleLights()
                 }
                 Divider()
-                Button("Settings") {
-                    showSettingsWindow()
-                }
-                Button("Check for Updates") {
-                    checkForAppUpdates()
-                }
-                Button("About Fairy Lights") {
-                    showAboutWindow()
-                }
+                Button("About Fairy Lights") { showWindow(id: "about", view: AboutView(), title: "About Fairy Lights", width: 320, height: 320) }
+                Button("Check for Updates") { checkForAppUpdates() }
+                Button("Settings...") { showWindow(id: "settings", view: SettingsView(checkForUpdates: { checkForAppUpdates()
+                })
+                    .environmentObject(appState), title: "Settings...", width: 400, height: 250) }
+                    .keyboardShortcut(",", modifiers: [.command])
                 Divider()
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
+                Button("Quit") { NSApplication.shared.terminate(nil) }
             }
         } label: {
-            let image: NSImage = {
-                guard let image = NSImage(named: "MenuBarIcon") else { return NSImage() }
-                let ratio = image.size.height / image.size.width
-                image.size.height = 16
-                image.size.width = 16 / ratio
-                return image
-            }()
-            Image(nsImage: image)
+            Image(nsImage: menuBarIcon())
                 .opacity(lightsController.isLightsOn ? 1.0 : 0.35)
         }
     }
@@ -53,92 +39,78 @@ struct FairyLightsApp: App {
             defer { isCheckingForUpdates = false }
             do {
                 let (latestVersion, downloadURL) = try await fetchLatestRelease()
-                let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-                
-                if isNewerVersion(latestVersion, than: currentVersion) {
-                    // Show update available alert
-                    showUpdateAvailableAlert(version: latestVersion, downloadURL: downloadURL)
-                } else {
-                    // Show no updates available alert
-                    showNoUpdateAlert()
-                }
+                handleUpdateCheckResult(latestVersion: latestVersion, downloadURL: downloadURL)
             } catch {
-                // Show error alert
-                showErrorAlert(message: error.localizedDescription)
+                showAlert(title: "Update Check Failed", message: error.localizedDescription, style: .warning)
             }
         }
     }
     
-    // MARK: - About, Settings
-    private func showAboutWindow() {
-        if aboutWindow == nil {
-            let hostingController = NSHostingController(rootView: AboutView())
-            aboutWindow = createWindow(title: "About Fairy Lights", content: hostingController, width: 320, height: 320)
-        }
-        aboutWindow?.makeKeyAndOrderFront(nil)
-    }
-    
-    private func showSettingsWindow() {
-        if settingsWindow == nil {
-            let hostingController = NSHostingController(rootView: SettingsView(checkForUpdates: {
-                checkForAppUpdates()
-            }).environmentObject(appState))
-            settingsWindow = createWindow(title: "Settings", content: hostingController, width: 400, height: 250)
-        }
-        settingsWindow?.makeKeyAndOrderFront(nil)
-    }
-    
-    private func createWindow(title: String, content: NSViewController, width: CGFloat, height: CGFloat) -> NSWindow {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = title
-        window.contentViewController = content
-        window.isReleasedWhenClosed = false
-        window.center()
-        return window
-    }
-    
-    private func showUpdateAvailableAlert(version: String, downloadURL: URL) {
-        let alert = NSAlert()
-        alert.messageText = "New Update Available"
-        alert.informativeText = "Fairy Lights \(version) is available. Would you like to download it?"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Download")
-        alert.addButton(withTitle: "Later")
+    private func handleUpdateCheckResult(latestVersion: String, downloadURL: URL) {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
         
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(downloadURL)
+        if isNewerVersion(latestVersion, than: currentVersion) {
+            showAlert(title: "New Update Available",
+                      message: "Fairy Lights \(latestVersion) is available. Would you like to download it?",
+                      style: .informational,
+                      buttons: ["Download", "Later"]) { response in
+                if response == .alertFirstButtonReturn {
+                    NSWorkspace.shared.open(downloadURL)
+                }
+            }
+        } else {
+            showAlert(title: "No Updates Available",
+                      message: "You are already on the latest version.",
+                      style: .informational)
         }
     }
     
-    private func showNoUpdateAlert() {
-        let alert = NSAlert()
-        alert.messageText = "No Updates Available"
-        alert.informativeText = "You are already on the latest version."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+    // MARK: - Window Management
+    private func showWindow<T: View>(id: String, view: T, title: String, width: CGFloat, height: CGFloat) {
+        if windows[id] == nil {
+            let hostingController = NSHostingController(rootView: view)
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = title
+            window.contentViewController = hostingController
+            window.isReleasedWhenClosed = false
+            window.center()
+            windows[id] = window
+        }
+        windows[id]?.makeKeyAndOrderFront(nil)
     }
     
-    private func showErrorAlert(message: String) {
+    // MARK: - Alert Handling
+    private func showAlert(title: String, message: String, style: NSAlert.Style, buttons: [String] = ["OK"], completion: ((NSApplication.ModalResponse) -> Void)? = nil) {
         let alert = NSAlert()
-        alert.messageText = "Update Check Failed"
+        alert.messageText = title
         alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        alert.alertStyle = style
+        buttons.forEach { alert.addButton(withTitle: $0) }
+        let response = alert.runModal()
+        completion?(response)
+    }
+    
+    // MARK: - Helper Functions
+    private func menuBarIcon() -> NSImage {
+        let image = NSImage(named: "MenuBarIcon") ?? NSImage()
+        let ratio = image.size.height / image.size.width
+        image.size.height = 16
+        image.size.width = 16 / ratio
+        return image
     }
     
     private func isNewerVersion(_ newVersion: String, than currentVersion: String) -> Bool {
-        let newComponents = newVersion.split(separator: ".").compactMap { Int($0) }
-        let currentComponents = currentVersion.split(separator: ".").compactMap { Int($0) }
+        let parse = { (version: String) in version.split(separator: ".").compactMap { Int($0) } }
+        let newComponents = parse(newVersion)
+        let currentComponents = parse(currentVersion)
+        
         for (new, current) in zip(newComponents, currentComponents) {
-            if new > current { return true }
-            if new < current { return false }
+            if new != current { return new > current }
         }
         return newComponents.count > currentComponents.count
     }

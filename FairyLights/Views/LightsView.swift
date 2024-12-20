@@ -11,47 +11,43 @@ struct LightsView: View {
     var body: some View {
         ZStack {
             let lightCount = Int((width / lightSpacing).rounded(.down)) + 1
-            let totalSpacing = CGFloat(lightCount - 1) * lightSpacing
-            let startingOffset = (width - totalSpacing) / 2
+            let startingOffset = (width - CGFloat(lightCount - 1) * lightSpacing) / 2
 
-            // Wire path
+            // Draw the wire
             Path { path in
-                let startX = startingOffset
-                let startY = menuBarHeight + sin(0) * verticalAmplitude
-
-                path.move(to: CGPoint(x: startX, y: startY))
+                path.move(to: CGPoint(x: startingOffset, y: menuBarHeight))
 
                 for index in 1..<lightCount {
                     let xOffset = startingOffset + CGFloat(index) * lightSpacing
                     let sineOffset = sin(CGFloat(index) * .pi / 4) * verticalAmplitude
                     let yOffset = menuBarHeight + sineOffset
 
-                    let controlX = (xOffset + startingOffset + CGFloat(index - 1) * lightSpacing) / 2
+                    let previousX = startingOffset + CGFloat(index - 1) * lightSpacing
+                    let controlX = (xOffset + previousX) / 2
                     let controlY = yOffset + 5
 
                     path.addQuadCurve(to: CGPoint(x: xOffset, y: yOffset),
                                       control: CGPoint(x: controlX, y: controlY))
                 }
             }
-            .stroke(Color.black, lineWidth: 3) // Draw the wire
+            .stroke(Color.black, lineWidth: 3)
 
-            // Draw the bulbs with bottoms aligned to the wire
+            // Draw the bulbs
             ForEach(0..<lightCount, id: \.self) { index in
                 let xOffset = startingOffset + CGFloat(index) * lightSpacing
                 let sineOffset = sin(CGFloat(index) * .pi / 4) * verticalAmplitude
+                let wireY = menuBarHeight + sineOffset
 
-                // Determine if bulb is upside-down or upright
+                // Determine bulb orientation
                 let isUpsideDown = Bool.random()
-                let yAdjustment = isUpsideDown ? 0 : -bulbHeight // Move upright bulbs up
+                let yAdjustment = isUpsideDown ? 0 : -bulbHeight
+                let positionY = wireY + (bulbHeight / 2) + yAdjustment
 
-                // Position bulbs
-                let positionY = menuBarHeight + sineOffset + (bulbHeight / 2) + yAdjustment
-
-                let baseRotation = CGFloat.random(in: -10...10)
-                let finalRotation = isUpsideDown ? baseRotation + 180 : baseRotation
+                // Apply slight rotation
+                let rotation = isUpsideDown ? CGFloat.random(in: -10...10) + 180 : CGFloat.random(in: -10...10)
 
                 BulbView()
-                    .rotationEffect(.degrees(finalRotation)) // Slight rotation
+                    .rotationEffect(.degrees(rotation))
                     .frame(width: bulbHeight, height: bulbHeight)
                     .position(x: xOffset, y: positionY)
             }

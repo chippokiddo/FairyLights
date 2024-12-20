@@ -1,48 +1,64 @@
 import SwiftUI
 
 struct BulbView: View {
-    let colors = ["red", "green", "yellow", "blue"]
-    @State private var currentColor: String = "red"
+    @State private var currentColor: BulbColor = .red
     @State private var glowVisible: Bool = false
+    
+    let size: CGFloat = 30
     
     var body: some View {
         ZStack {
             if glowVisible {
-                Image("bulb_\(currentColor)_glow")
+                Image("bulb_\(currentColor.rawValue)_glow")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 30, height: 30)
+                    .frame(width: size, height: size)
             }
 
-            Image("bulb_\(currentColor)")
+            Image("bulb_\(currentColor.rawValue)")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 30, height: 30)
+                .frame(width: size, height: size)
         }
         .onAppear {
-            startTwinkleEffect()
-            startColorChangeEffect()
+            startEffects()
         }
     }
     
-    private func startTwinkleEffect() {
-        Timer.scheduledTimer(withTimeInterval: Double.random(in: 0.5...1.5), repeats: true) { _ in
-            DispatchQueue.main.async {
-                withAnimation(Animation.easeInOut(duration: 0.5)) {
-                    glowVisible.toggle()
-                }
+    private func startEffects() {
+        startRandomTwinkleEffect()
+        startRandomColorChangeEffect()
+    }
+    
+    private func startRandomTwinkleEffect() {
+        Task.detached {
+            while true {
+                try? await Task.sleep(nanoseconds: UInt64.random(in: 500_000_000...2_000_000_000))
+                await toggleGlow()
             }
         }
     }
-
-    private func startColorChangeEffect() {
-        Timer.scheduledTimer(withTimeInterval: Double.random(in: 2.0...4.0), repeats: true) { _ in
-            let newColor = colors.randomElement() ?? "red"
-            DispatchQueue.main.async {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    currentColor = newColor
-                }
+    
+    private func startRandomColorChangeEffect() {
+        Task.detached {
+            while true {
+                try? await Task.sleep(nanoseconds: UInt64.random(in: 3_000_000_000...5_000_000_000))
+                await changeColor()
             }
+        }
+    }
+    
+    @MainActor
+    private func toggleGlow() {
+        withAnimation(Animation.easeInOut(duration: 0.3)) {
+            glowVisible.toggle()
+        }
+    }
+    
+    @MainActor
+    private func changeColor() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            currentColor = BulbColor.allCases.randomElement() ?? .red
         }
     }
 }
