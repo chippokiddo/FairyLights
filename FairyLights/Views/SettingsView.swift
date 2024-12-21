@@ -16,7 +16,7 @@ struct SettingsView: View {
     
     // MARK: - Header
     private var SettingsHeader: some View {
-        Text("Settings")
+        Text("Fairy Lights Settings")
             .font(.system(size: 20, weight: .semibold, design: .default))
             .padding(.bottom, 10)
     }
