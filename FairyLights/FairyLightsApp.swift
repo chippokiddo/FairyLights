@@ -15,7 +15,6 @@ struct FairyLightsApp: App {
 				Button(lightsController.isLightsOn ? "Turn Off" : "Turn On") {
 					lightsController.toggleLights()
 				}
-                .keyboardShortcut("L", modifiers: [.command, .option])
 
 				Divider()
 
@@ -40,18 +39,9 @@ struct FairyLightsApp: App {
 			}
 		} label: {
 			Image(nsImage: menuBarIcon())
+                .renderingMode(.template)
 				.opacity(lightsController.isLightsOn ? 1.0 : 0.35)
 		}
-        
-        // Global commands
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button(lightsController.isLightsOn ? "Turn Off Lights" : "Turn On Lights") {
-                    lightsController.toggleLights()
-                }
-                .keyboardShortcut("L", modifiers: [.command, .option])
-            }
-        }
 	}
 
 	// MARK: - Update Check
