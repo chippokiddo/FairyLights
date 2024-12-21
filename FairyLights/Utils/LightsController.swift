@@ -21,7 +21,21 @@ class LightsController: ObservableObject {
 
     func toggleLights() {
         isLightsOn.toggle()
-        isLightsOn ? fadeInLights() : fadeOutLights()
+        if isLightsOn {
+            NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    self?.handleScreenChange()
+                }
+            }
+            fadeInLights()
+        } else {
+            NotificationCenter.default.removeObserver(self, name: NSApplication.didChangeScreenParametersNotification, object: nil)
+            fadeOutLights()
+        }
     }
 
     private func fadeInLights() {
@@ -41,6 +55,7 @@ class LightsController: ObservableObject {
     private func fadeOutLights() {
         animateWindows(alpha: 0.0) {
             self.clearWindows()
+            self.windows = []
         }
     }
 
@@ -79,7 +94,7 @@ class LightsController: ObservableObject {
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.5
-            for window in windows {
+            for window in self.windows {
                 window.animator().alphaValue = alpha
             }
         } completionHandler: {
